@@ -241,7 +241,6 @@ const playersOut = Array.from(repById.values()).map((p) => {
 
 // Deterministic puzzle queue: newest-first eligible lines, then repeat.
 const puzzlesOut = eligible.slice(0, Math.max(MAX_PUZZLES, 365)).map((line, idx) => {
-  const base = repById.get(line.personId)!;
   const initials = `${line.first[0] ?? ""}${line.last[0] ?? ""}`.toUpperCase();
   const display = `${line.first[0] ?? ""}. ${line.last}`.trim();
   const team = teamMeta(line.teamCode);

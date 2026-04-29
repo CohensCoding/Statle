@@ -1,53 +1,65 @@
 @import "tailwindcss";
 
 :root {
-  /* Statle v2 tokens (locked) */
-  --paper: #f2ede3;
-  --paper2: #e8e1d2;
-  --ink: #15110b;
-  --ink2: #3b342a;
-  --rule: #1f1a12;
-  --ruleSoft: rgba(31, 26, 18, 0.18);
-  --accent: #c8472b;
-  --accent2: #a8351e;
-  --hit: #2f6b3f;
-  --close: #c68a1b;
-  --miss: #b83a22;
-  --card: #0f0c07;
-  --cardInk: #f2ede3;
-  --cardAccent: #d89d3e;
+  /* Surfaces */
+  --bg: #0e0e10;
+  --surface: #18181b;
+  --surface-2: #232327;
+  --hairline: rgba(255, 255, 255, 0.08);
+
+  /* Type */
+  --fg: #edeae4;
+  --fg-dim: rgba(237, 234, 228, 0.62);
+  --fg-faint: rgba(237, 234, 228, 0.32);
+
+  /* Brand */
+  --accent: #ff6b35;
+  --accent-soft: rgba(255, 107, 53, 0.12);
+
+  /* Game feedback */
+  --hit: #4ade80;
+  --miss: #ef4444;
+  --close: #f59e0b;
 }
 
 @theme inline {
-  --color-paper: var(--paper);
-  --color-paper2: var(--paper2);
-  --color-ink: var(--ink);
-  --color-ink2: var(--ink2);
-  --color-rule: var(--rule);
-  --color-ruleSoft: var(--ruleSoft);
-  --color-accent: var(--accent);
-  --color-accent2: var(--accent2);
-  --color-hit: var(--hit);
-  --color-close: var(--close);
-  --color-miss: var(--miss);
-  --color-card: var(--card);
-  --color-cardInk: var(--cardInk);
-  --color-cardAccent: var(--cardAccent);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface-2);
+  --color-hairline: var(--hairline);
 
-  --font-display: var(--font-fraunces);
-  --font-ui: var(--font-inter);
+  --color-fg: var(--fg);
+  --color-fgDim: var(--fg-dim);
+  --color-fgFaint: var(--fg-faint);
+
+  --color-accent: var(--accent);
+  --color-accentSoft: var(--accent-soft);
+
+  --color-hit: var(--hit);
+  --color-miss: var(--miss);
+  --color-close: var(--close);
+
+  --font-ui: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans";
 }
 
-.tabular-nums {
+.mono {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 @keyframes rowSlideV2 {
@@ -89,5 +101,28 @@ body {
   100% {
     transform: translateX(135%) rotate(12deg);
     opacity: 0;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes winPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
   }
 }

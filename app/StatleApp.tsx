@@ -4,7 +4,7 @@ import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { GuessResult, Outcome, Player, Puzzle, StoredState } from "@/lib/types";
 import { compareGuess, isWinningGuess } from "@/lib/engine";
-import { formatIssueDate, getPlayers, getPuzzleByIssue, getTodayPuzzle } from "@/lib/puzzles";
+import { getPlayers, getPuzzleByIssue, getTodayPuzzle } from "@/lib/puzzles";
 import { bumpHistogram, loadStoredState, saveStoredState } from "@/lib/storage";
 import { TradingCard } from "@/components/TradingCard";
 import { ShareCard } from "@/components/ShareCard";
@@ -45,10 +45,11 @@ export default function StatleApp() {
   const [highlight, setHighlight] = useState(0);
   const [activeTab, setActiveTab] = useState<"card" | "share">("share");
   const [edition, setEdition] = useState<"base" | "gold" | "holo">("base");
+  const [shareBump, setShareBump] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const guesses = stored.todaysGuesses ?? [];
+  const guesses = useMemo(() => stored.todaysGuesses ?? [], [stored.todaysGuesses]);
   const outcome: Outcome = stored.todaysOutcome ?? "playing";
 
   const rows = useMemo(() => computeRows(guesses, puzzle.target), [guesses, puzzle.target]);
@@ -122,13 +123,21 @@ export default function StatleApp() {
   }
 
   async function share() {
+    // tap feedback (brief) before launching share sheet
+    setShareBump(true);
+    window.setTimeout(() => setShareBump(false), 180);
+    await new Promise((r) => setTimeout(r, 120));
     const score = stored.todaysOutcome === "win" ? stored.todaysGuesses.length : 0;
+    const used = stored.todaysGuesses.length;
+    const outcomeParam = stored.todaysOutcome === "win" ? "win" : stored.todaysOutcome === "loss" ? "loss" : "playing";
     const url = `${window.location.origin}/?p=${puzzle.issueNo}`;
     const text = score
       ? `I solved Statle №${puzzle.issueNo} in ${score}/6.`
       : `Statle №${puzzle.issueNo} got me. Can you solve it?`;
 
-    const imageUrl = `/api/share/${puzzle.date}?score=${encodeURIComponent(String(score))}`;
+    const imageUrl = `/api/share/${puzzle.date}?score=${encodeURIComponent(String(score))}&used=${encodeURIComponent(
+      String(used),
+    )}&outcome=${encodeURIComponent(outcomeParam)}`;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nav: any = navigator;
@@ -156,8 +165,14 @@ export default function StatleApp() {
   }
 
   return (
-    <div className="flex-1 flex flex-col items-center px-4 py-8 sm:py-10">
-      <div className="w-full max-w-[420px]">
+    <div
+      className="min-h-screen"
+      style={{
+        background:
+          "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,107,53,0.04), transparent 60%)",
+      }}
+    >
+      <div className="px-6">
         {outcome === "playing" ? (
           <GameScreen
             puzzle={puzzle}
@@ -181,6 +196,7 @@ export default function StatleApp() {
             edition={edition}
             setEdition={setEdition}
             onShare={share}
+            shareBump={shareBump}
           />
         )}
       </div>
@@ -188,147 +204,160 @@ export default function StatleApp() {
   );
 }
 
-function Masthead({ puzzle, guessesMade }: { puzzle: Puzzle; guessesMade: number }) {
+function Wordmark() {
   return (
-    <div className="flex items-start justify-between">
-      <div className="flex flex-col gap-1">
-        <div className="font-[var(--font-display)] italic tracking-[-0.03em] text-[22px] leading-none">
-          Statle
-        </div>
-        <div className="font-[var(--font-ui)] text-[11px] tracking-[0.22em] text-[--color-ink2]">
-          №{puzzle.issueNo} · {formatIssueDate(puzzle.date)}
+    <div className="text-[18px] font-bold tracking-[-0.04em]">
+      statle<span className="text-[--accent]">.</span>
+    </div>
+  );
+}
+
+function Masthead({ guessesMade }: { guessesMade: number }) {
+  return (
+    <div className="sticky top-0 z-30 bg-[--bg]">
+      <div className="h-[56px] flex items-center justify-between">
+        <Wordmark />
+        <div className="flex gap-1">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="h-2 w-2 rounded-full"
+              style={{ background: i < guessesMade ? "var(--fg)" : "var(--hairline)" }}
+            />
+          ))}
         </div>
       </div>
-      <div className="flex gap-1.5 pt-1">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-2.5 w-2.5 rounded-full border border-[--color-ruleSoft]"
-            style={{ background: i < guessesMade ? "var(--ink)" : "transparent" }}
-          />
+      <div className="h-px w-full bg-[--hairline]" />
+    </div>
+  );
+}
+
+function StatHero({ puzzle }: { puzzle: Puzzle }) {
+  const t = puzzle.target;
+  const [anim, setAnim] = useState(() => ({
+    ppg: 0,
+    rpg: 0,
+    apg: 0,
+    fg: 0,
+    tp: 0,
+  }));
+
+  useEffect(() => {
+    const start = performance.now();
+    const dur = 600;
+    const from = { ppg: 0, rpg: 0, apg: 0, fg: 0, tp: 0 };
+    const to = { ppg: t.stats.ppg, rpg: t.stats.rpg, apg: t.stats.apg, fg: t.stats.fg, tp: t.stats.tp };
+    let raf = 0;
+    const tick = (now: number) => {
+      const x = Math.min(1, (now - start) / dur);
+      const ease = 1 - Math.pow(1 - x, 3);
+      setAnim({
+        ppg: from.ppg + (to.ppg - from.ppg) * ease,
+        rpg: from.rpg + (to.rpg - from.rpg) * ease,
+        apg: from.apg + (to.apg - from.apg) * ease,
+        fg: from.fg + (to.fg - from.fg) * ease,
+        tp: from.tp + (to.tp - from.tp) * ease,
+      });
+      if (x < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puzzle.issueNo]);
+
+  return (
+    <div className="py-8">
+      <div className="text-[11px] font-semibold tracking-[0.16em] text-[--fg-faint]">
+        {puzzle.season} SEASON
+      </div>
+
+      <div className="mt-3 mono font-medium tracking-[-0.02em] leading-[1.05] text-[52px] sm:text-[72px]">
+        <StatSlash value={anim.ppg.toFixed(1)} />
+        <span className="opacity-40"> / </span>
+        <StatSlash value={anim.rpg.toFixed(1)} />
+        <span className="opacity-40"> / </span>
+        <StatSlash value={anim.apg.toFixed(1)} />
+        <span className="opacity-40"> / </span>
+        <StatSlash value={anim.fg.toFixed(1)} suffix="%" />
+        <span className="opacity-40"> / </span>
+        <StatSlash value={anim.tp.toFixed(1)} suffix="%" />
+      </div>
+
+      <div className="mt-3 grid grid-cols-5 text-[10px] font-semibold tracking-[0.16em] text-[--fg-faint]">
+        {["PPG", "RPG", "APG", "FG%", "3P%"].map((x) => (
+          <div key={x} className="text-center">
+            {x}
+          </div>
         ))}
       </div>
     </div>
   );
 }
 
-function MysteryHero({ puzzle }: { puzzle: Puzzle }) {
-  const t = puzzle.target;
+function StatSlash({ value, suffix }: { value: string; suffix?: string }) {
   return (
-    <div className="mt-5 rounded-[18px] overflow-hidden border border-[--color-ruleSoft]">
-      <div
-        className="relative p-5"
-        style={{
-          background: "linear-gradient(180deg, #1a1410 0%, #0a0805 100%)",
-          color: "var(--cardInk)",
-        }}
-      >
-        <div className="flex items-baseline justify-between">
-          <div className="font-[var(--font-ui)] text-[11px] tracking-[0.24em] text-[rgba(242,237,227,0.78)]">
-            SEASON STAT LINE
-          </div>
-          <div className="font-[var(--font-ui)] text-[11px] tracking-[0.24em] text-[rgba(242,237,227,0.78)]">
-            {puzzle.season}
-          </div>
-        </div>
-
-        <div className="mt-4 tabular-nums font-[var(--font-display)] tracking-[-0.04em]">
-          <div className="flex items-end justify-between gap-3">
-            <StatBig value={t.stats.ppg} label="PPG" />
-            <StatBig value={t.stats.rpg} label="RPG" />
-            <StatBig value={t.stats.apg} label="APG" />
-            <StatBig value={t.stats.fg} label="FG%" />
-            <StatBig value={t.stats.tp} label="3P%" />
-          </div>
-        </div>
-
-        <div className="mt-5 h-px bg-[rgba(242,237,227,0.18)]" />
-
-        <div className="mt-5 flex items-center gap-4">
-          <div className="h-[64px] w-[52px] rounded-md bg-[rgba(242,237,227,0.08)] border border-[rgba(242,237,227,0.18)]" />
-          <div className="flex flex-col">
-            <div className="font-[var(--font-display)] italic text-[18px] tracking-[-0.02em]">Locked.</div>
-            <div className="font-[var(--font-ui)] text-[11px] tracking-[0.22em] text-[rgba(242,237,227,0.75)]">
-              UNLOCK WITH 6 GUESSES
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <span>
+      {value}
+      {suffix ? <span className="opacity-40">{suffix}</span> : null}
+    </span>
   );
 }
 
-function StatBig({ value, label }: { value: number; label: string }) {
-  const fmt =
-    label.endsWith("%") ? `${value.toFixed(1)}%` : value >= 10 ? value.toFixed(1) : value.toFixed(1);
-  return (
-    <div className="flex flex-col items-center flex-1 min-w-0">
-      <div className="text-[22px] leading-none">{fmt}</div>
-      <div className="mt-1 font-[var(--font-ui)] text-[10px] tracking-[0.22em] text-[rgba(242,237,227,0.7)]">
-        {label}
-      </div>
-    </div>
-  );
+function Divider() {
+  return <div className="h-px w-full bg-[--hairline]" />;
 }
 
-function SectionHeader({ guessesMade }: { guessesMade: number }) {
+function Counter({ guessesMade }: { guessesMade: number }) {
   const left = Math.max(0, 6 - guessesMade);
   return (
-    <div className="mt-6 flex items-baseline justify-between">
-      <div className="font-[var(--font-ui)] text-[11px] tracking-[0.24em] text-[--color-ink2]">YOUR GUESSES</div>
-      <div className="font-[var(--font-ui)] text-[11px] tracking-[0.2em] text-[--color-ink2]">
-        {guessesMade} of 6 · <span className="text-[--color-accent]">{left}</span> left
-      </div>
+    <div className="py-4 text-[12px] text-[--fg-dim]">
+      {guessesMade} of 6 · <span className="text-[--accent]">{left} left</span>
     </div>
   );
 }
 
-function GuessRowView({ idx, row }: { idx: number; row: GuessRow }) {
+function GuessRowView({ row, animate, pulse }: { row: GuessRow; animate: boolean; pulse: boolean }) {
+  const p = row.guess;
   return (
     <div
-      className="mt-3 rounded-[14px] border border-[--color-ruleSoft] bg-[--color-paper] overflow-hidden"
-      style={{ animation: "rowSlideV2 220ms ease-out both" }}
+      className="rounded-[12px] bg-[--surface] p-4"
+      style={{
+        animation: animate ? "rowSlideV2 200ms cubic-bezier(0.2,0.8,0.2,1) both" : undefined,
+        ...(pulse ? { animation: "winPulse 400ms ease-in-out both" } : null),
+      }}
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[--color-ruleSoft]">
-        <div className="font-[var(--font-display)] tracking-[-0.03em] text-[18px]">
-          {uiFullName(row.guess)}
-        </div>
-        <div className="flex items-baseline gap-2 tabular-nums">
-          <div className="font-[var(--font-display)] tracking-[-0.03em] text-[18px]">{row.guess.stats.ppg.toFixed(1)}</div>
-          <div className="font-[var(--font-ui)] text-[11px] tracking-[0.22em] text-[--color-ink2]">#{idx + 1}</div>
-        </div>
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="text-[14px] font-semibold">{uiFullName(p)}</div>
+        <div className="mono text-[11px] text-[--fg-faint]">{p.teamCode}</div>
       </div>
-      <div className="grid grid-cols-5 gap-2 px-4 py-3">
+      <div className="mt-1 mono text-[11px] text-[--fg-faint]">
+        {p.teamCode} · {p.position} · {p.height || "—"} · {p.draft || "—"}
+      </div>
+      <div className="mt-3 grid grid-cols-5 gap-2">
         {row.results.map((r, i) => (
-          <div
-            key={r.cat}
-            className="h-[46px] rounded-[10px] flex flex-col items-center justify-center border"
-            style={{
-              background: r.status === "hit" ? "var(--hit)" : "var(--miss)",
-              borderColor: "rgba(0,0,0,0.18)",
-              animation: "cellFlipV2 300ms ease-out both",
-              animationDelay: `${i * 45}ms`,
-              transformOrigin: "50% 50%",
-            }}
-          >
-            <div className="font-[var(--font-ui)] text-[10px] tracking-[0.22em] text-[rgba(242,237,227,0.85)]">
-              {r.label}
-            </div>
-            <div className="font-[var(--font-display)] tabular-nums tracking-[-0.03em] text-[15px] text-[--color-cardInk]">
-              {r.value}
-            </div>
-          </div>
+          <ResultCell key={r.cat} r={r} delayMs={i * 80} animate={animate} />
         ))}
       </div>
     </div>
   );
 }
 
-function EmptyRow() {
+function ResultCell({ r, delayMs, animate }: { r: GuessResult; delayMs: number; animate: boolean }) {
+  const icon = r.cat === "draft" && r.status === "miss" && r.dir ? (r.dir === "up" ? "↑" : "↓") : r.status === "hit" ? "✓" : "✗";
   return (
-    <div className="mt-3 rounded-[14px] border border-dashed border-[--color-ruleSoft] bg-[--color-paper] px-4 py-5">
-      <div className="font-[var(--font-display)] italic tracking-[-0.02em] text-[16px] text-[--color-ink2]">
-        Make your next guess…
+    <div
+      className="h-[44px] rounded-[8px] flex items-center justify-center"
+      style={{
+        background: r.status === "hit" ? "var(--hit)" : "var(--miss)",
+        animation: animate ? "cellFlipV2 280ms cubic-bezier(0.2,0.8,0.2,1) both" : undefined,
+        animationDelay: animate ? `${delayMs}ms` : undefined,
+        transformOrigin: "50% 50%",
+      }}
+      title={`${r.cat}: ${r.value}`}
+    >
+      <div className="flex flex-col items-center leading-none">
+        <div className="text-[14px] font-bold text-black/90">{icon}</div>
+        <div className="mono text-[11px] font-bold tracking-[0.16em] text-black/80">{r.value}</div>
       </div>
     </div>
   );
@@ -354,62 +383,54 @@ function InputBar({
   const open = query.trim().length > 0 && suggestions.length > 0;
 
   return (
-    <div className="mt-4">
-      <div className="flex items-stretch gap-2">
-        <div className="relative flex-1">
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setHighlight(0);
-            }}
-            onKeyDown={(e) => {
-              if (!open) return;
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                setHighlight((highlight + 1) % suggestions.length);
-              } else if (e.key === "ArrowUp") {
-                e.preventDefault();
-                setHighlight((highlight - 1 + suggestions.length) % suggestions.length);
-              } else if (e.key === "Enter") {
-                e.preventDefault();
-                onSubmitGuess(suggestions[highlight]!);
-              }
-            }}
-            placeholder="Enter a player…"
-            className="w-full h-[54px] rounded-[14px] border border-[--color-ruleSoft] bg-[--color-paper] px-4 font-[var(--font-display)] italic tracking-[-0.02em] text-[16px] placeholder:text-[--color-ink2]/70 focus:outline-none focus:ring-2 focus:ring-[--color-accent]/30"
-          />
-          {open ? (
-            <div className="absolute left-0 right-0 mt-2 rounded-[14px] border border-[--color-ruleSoft] bg-[--color-paper] shadow-sm overflow-hidden z-20">
-              {suggestions.map((p, i) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onMouseEnter={() => setHighlight(i)}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => onSubmitGuess(p)}
-                  className="w-full text-left px-4 py-3 border-b last:border-b-0 border-[--color-ruleSoft] hover:bg-[--color-paper2] focus:bg-[--color-paper2] focus:outline-none"
-                  style={{ background: i === highlight ? "var(--paper2)" : "var(--paper)" }}
-                >
-                  <div className="font-[var(--font-display)] tracking-[-0.03em] text-[16px]">{uiFullName(p)}</div>
-                  <div className="mt-1 font-[var(--font-ui)] text-[10px] tracking-[0.22em] text-[--color-ink2]">
-                    {p.teamCode} · {p.position}
-                  </div>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (suggestions[0]) onSubmitGuess(suggestions[highlight] ?? suggestions[0]);
+    <div className="sticky top-[56px] z-20 bg-[--bg] pt-4 pb-4">
+      <div className="relative">
+        {open ? (
+          <div className="absolute left-0 right-0 -top-2 -translate-y-full rounded-[8px] overflow-hidden bg-[--surface] shadow-lg">
+            {suggestions.map((p, i) => (
+              <button
+                key={p.id}
+                type="button"
+                onMouseEnter={() => setHighlight(i)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onSubmitGuess(p)}
+                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-[--surface-2] focus:bg-[--surface-2] focus:outline-none"
+                style={{ background: i === highlight ? "var(--surface-2)" : "var(--surface)" }}
+              >
+                <div className="text-[15px]">{uiFullName(p)}</div>
+                <div className="mono text-[11px] text-[--fg-faint]">
+                  {p.teamCode} · {p.position}
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setHighlight(0);
           }}
-          className="h-[54px] px-5 rounded-[14px] bg-[--color-accent] text-[--color-paper] font-[var(--font-ui)] text-[12px] tracking-[0.22em] hover:bg-[--color-accent2] active:translate-y-px transition"
-        >
-          GUESS
-        </button>
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (open) onSubmitGuess(suggestions[highlight]!);
+              return;
+            }
+            if (!open) return;
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setHighlight((highlight + 1) % suggestions.length);
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setHighlight((highlight - 1 + suggestions.length) % suggestions.length);
+            }
+          }}
+          placeholder="Search players"
+          className="w-full h-[56px] rounded-[8px] bg-[--surface] px-4 text-[16px] placeholder:text-[--fg-dim] focus:outline-none focus:ring-2 focus:ring-[--accent-soft]"
+        />
       </div>
     </div>
   );
@@ -440,15 +461,9 @@ function GameScreen({
 }) {
   return (
     <div>
-      <Masthead puzzle={puzzle} guessesMade={guessesMade} />
-      <MysteryHero puzzle={puzzle} />
-      <SectionHeader guessesMade={guessesMade} />
-      <div className="mt-1">
-        {rows.map((row, i) => (
-          <GuessRowView key={`${row.guess.id}-${i}`} idx={i} row={row} />
-        ))}
-        {guessesMade < 6 ? <EmptyRow /> : null}
-      </div>
+      <Masthead guessesMade={guessesMade} />
+      <StatHero puzzle={puzzle} />
+      <Divider />
       <InputBar
         query={query}
         setQuery={setQuery}
@@ -458,6 +473,23 @@ function GameScreen({
         inputRef={inputRef}
         onSubmitGuess={onSubmitGuess}
       />
+      <div className="pt-2">
+        <Counter guessesMade={guessesMade} />
+        <div className="flex flex-col gap-3 pb-10">
+          {rows.map((row, i) => {
+            const isLast = i === rows.length - 1;
+            const isWinRow = isLast && isWinningGuess(row.guess, puzzle.target);
+            return (
+              <GuessRowView
+                key={`${row.guess.id}-${i}`}
+                row={row}
+                animate={isLast}
+                pulse={isWinRow}
+              />
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -471,6 +503,7 @@ function ResultScreen({
   edition,
   setEdition,
   onShare,
+  shareBump,
 }: {
   puzzle: Puzzle;
   rows: GuessRow[];
@@ -480,90 +513,93 @@ function ResultScreen({
   edition: "base" | "gold" | "holo";
   setEdition: (e: "base" | "gold" | "holo") => void;
   onShare: () => void;
+  shareBump: boolean;
 }) {
   const solvedIn = outcome === "win" ? rows.length : null;
   return (
     <div>
-      <Masthead puzzle={puzzle} guessesMade={rows.length} />
+      <Masthead guessesMade={rows.length} />
 
-      <div className="mt-6">
-        <div className="font-[var(--font-ui)] text-[11px] tracking-[0.24em] text-[--color-accent]">
-          {outcome === "win" ? "CASE CLOSED" : "STREAK BROKEN"}
-        </div>
-        <div className="mt-1 font-[var(--font-display)] tracking-[-0.04em] text-[34px] leading-[1.05]">
+      <div className="pt-8 pb-6" style={{ animation: "fadeUp 200ms ease-out both" }}>
+        <div className="text-[56px] leading-[0.95] font-bold tracking-[-0.04em] uppercase">
           {outcome === "win" ? (
             <>
-              Solved in <span className="italic">{solvedIn}.</span>
+              SOLVED IN {solvedIn}
+              <span className="text-[--accent]">.</span>
             </>
           ) : (
-            <>
-              It was <span className="italic">{puzzle.target.last}.</span>
-            </>
+            <>OUT OF GUESSES</>
           )}
         </div>
       </div>
 
-      <div className="mt-6 flex gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab("card")}
-          className="flex-1 rounded-[14px] border border-[--color-ruleSoft] px-4 py-3 text-left"
-          style={{
-            background: activeTab === "card" ? "var(--ink)" : "var(--paper)",
-            color: activeTab === "card" ? "var(--paper)" : "var(--ink)",
-          }}
-        >
-          <div className="font-[var(--font-ui)] text-[11px] tracking-[0.24em]">CARD</div>
-          <div className="mt-1 font-[var(--font-ui)] text-[10px] tracking-[0.22em] opacity-80">private</div>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("share")}
-          className="flex-1 rounded-[14px] border border-[--color-ruleSoft] px-4 py-3 text-left"
-          style={{
-            background: activeTab === "share" ? "var(--ink)" : "var(--paper)",
-            color: activeTab === "share" ? "var(--paper)" : "var(--ink)",
-          }}
-        >
-          <div className="font-[var(--font-ui)] text-[11px] tracking-[0.24em]">SHARE</div>
-          <div className="mt-1 font-[var(--font-ui)] text-[10px] tracking-[0.22em] opacity-80">spoiler-free</div>
-        </button>
-      </div>
-
-      <div className="mt-4 rounded-[18px] border border-[--color-ruleSoft] bg-[--color-paper2] p-5 flex justify-center">
-        {activeTab === "card" ? (
-          <TradingCard puzzle={puzzle} guessesUsed={rows.length} outcome={outcome} edition={edition} />
-        ) : (
-          <ShareCard puzzle={puzzle} guessesUsed={rows.length} outcome={outcome} />
-        )}
+      <div className="flex gap-2">
+        {(["card", "share"] as const).map((t) => {
+          const selected = activeTab === t;
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setActiveTab(t)}
+              className="flex-1 h-[44px] rounded-[8px] bg-[--surface] text-[14px] font-semibold"
+              style={{
+                background: selected ? "var(--fg)" : "var(--surface)",
+                color: selected ? "var(--bg)" : "var(--fg-dim)",
+              }}
+            >
+              {t === "card" ? "Card" : "Share"}
+            </button>
+          );
+        })}
       </div>
 
       {activeTab === "card" ? (
-        <div className="mt-4 flex items-center justify-between">
-          <div className="font-[var(--font-ui)] text-[11px] tracking-[0.22em] text-[--color-ink2]">EDITION</div>
-          <div className="flex gap-2">
-            {(["base", "gold", "holo"] as const).map((e) => (
+        <div className="mt-4 flex gap-2">
+          {(["base", "gold", "holo"] as const).map((e) => {
+            const selected = edition === e;
+            const label = e === "base" ? "Standard" : e[0]!.toUpperCase() + e.slice(1);
+            return (
               <button
                 key={e}
                 type="button"
                 onClick={() => setEdition(e)}
-                className="px-3 py-2 rounded-[12px] border border-[--color-ruleSoft] font-[var(--font-ui)] text-[11px] tracking-[0.2em]"
-                style={{ background: edition === e ? "var(--paper2)" : "var(--paper)" }}
+                className="flex-1 h-[36px] rounded-[8px] bg-[--surface] text-[13px] font-semibold"
+                style={{
+                  background: selected ? "var(--fg)" : "var(--surface)",
+                  color: selected ? "var(--bg)" : "var(--fg-dim)",
+                }}
               >
-                {e.toUpperCase()}
+                {label}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
       ) : null}
 
-      <button
-        type="button"
-        onClick={onShare}
-        className="mt-5 w-full h-[54px] rounded-[14px] bg-[--color-accent] text-[--color-paper] font-[var(--font-ui)] text-[12px] tracking-[0.22em] hover:bg-[--color-accent2] active:translate-y-px transition"
-      >
-        {activeTab === "card" ? "SHARE" : "POST THE RIDDLE"}
-      </button>
+      <div className="mt-6 flex justify-center">
+        <div style={{ transform: shareBump ? "scale(1.02)" : "scale(1)", filter: shareBump ? "brightness(1.04)" : "none", transition: "transform 180ms ease, filter 180ms ease" }}>
+          {activeTab === "card" ? (
+            <TradingCard puzzle={puzzle} guessesUsed={rows.length} outcome={outcome} edition={edition} />
+          ) : (
+            <ShareCard puzzle={puzzle} guessesUsed={rows.length} outcome={outcome} />
+          )}
+        </div>
+      </div>
+
+      <div className="h-[84px]" />
+
+      <div className="fixed bottom-0 left-0 right-0 flex justify-center bg-[--bg]">
+        <div className="w-full max-w-[440px] px-6 pb-6 pt-4">
+          <button
+            type="button"
+            onClick={onShare}
+            className="w-full h-[56px] rounded-[8px] bg-[--accent] text-[--bg] font-bold text-[14px] tracking-[-0.01em]"
+          >
+            {activeTab === "card" ? "Save card" : "Share"}
+          </button>
+          <div className="mt-2 text-[12px] text-[--fg-faint]">Next puzzle in —</div>
+        </div>
+      </div>
     </div>
   );
 }

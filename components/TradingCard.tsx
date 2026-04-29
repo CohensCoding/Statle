@@ -1,11 +1,5 @@
 import type { Outcome, Puzzle } from "@/lib/types";
 
-function editionLabel(e: "base" | "gold" | "holo"): string {
-  if (e === "gold") return "Gold Edition";
-  if (e === "holo") return "Holo Edition";
-  return "Standard Edition";
-}
-
 export function TradingCard({
   puzzle,
   guessesUsed,
@@ -22,85 +16,77 @@ export function TradingCard({
 
   return (
     <div
-      className="relative w-[320px] h-[460px] rounded-[18px] overflow-hidden border border-[rgba(242,237,227,0.12)]"
-      style={{ background: "var(--card)", color: "var(--cardInk)" }}
+      className="relative w-[320px] h-[460px] rounded-[12px] overflow-hidden"
+      style={{ background: "var(--surface)", color: "var(--fg)", border: "1px solid var(--hairline)" }}
     >
+      {/* edition treatments */}
       {edition === "gold" ? (
         <div
           className="absolute inset-0"
           style={{
-            background: "radial-gradient(80% 60% at 30% 20%, rgba(216,157,62,0.22) 0%, rgba(15,12,7,0) 70%)",
+            background: "radial-gradient(80% 60% at 0% 0%, rgba(216,157,62,0.16) 0%, rgba(0,0,0,0) 65%)",
           }}
         />
       ) : null}
       {edition === "holo" ? (
         <div
-          className="absolute inset-0 mix-blend-soft-light opacity-45"
+          className="absolute inset-0"
           style={{
             background:
-              "conic-gradient(from 180deg at 50% 50%, rgba(216,157,62,0.9), rgba(92,203,255,0.85), rgba(195,109,255,0.85), rgba(216,157,62,0.9))",
-          }}
-        />
-      ) : null}
-
-      {/* shimmer sweep */}
-      {edition === "holo" ? (
-        <div
-          className="absolute -left-1/2 top-0 h-full w-1/2 opacity-0"
-          style={{
-            background: "linear-gradient(90deg, rgba(242,237,227,0) 0%, rgba(242,237,227,0.22) 50%, rgba(242,237,227,0) 100%)",
-            animation: "cardShimmer 2.6s ease-in-out infinite",
+              "conic-gradient(from 0deg at 50% 50%, rgba(255,107,53,0.12), rgba(92,203,255,0.10), rgba(195,109,255,0.10), rgba(255,107,53,0.12))",
+            mixBlendMode: "soft-light",
+            opacity: 0.18,
+            animation: "spin 8s linear infinite",
           }}
         />
       ) : null}
 
       <div className="relative p-5 h-full flex flex-col">
-        <div className="absolute right-4 top-2 tabular-nums font-[var(--font-display)] tracking-[-0.04em] text-[240px] leading-none opacity-[0.08] text-[--color-cardAccent]">
-          {p.number ? String(p.number) : "0"}
-        </div>
-
-        <div className="relative">
-          <div className="font-[var(--font-ui)] text-[10px] tracking-[0.26em] text-[rgba(242,237,227,0.7)]">
-            {p.teamCode} · {p.position} · {p.height || "—"} · №{p.number || 0}
-          </div>
-          <div className="mt-3 font-[var(--font-display)] tracking-[-0.05em] text-[44px] leading-[0.95]">
-            <div>{p.first}</div>
-            <div className="italic">{p.last}</div>
-          </div>
-          <div className="mt-3 font-[var(--font-display)] italic tracking-[-0.02em] text-[16px] text-[rgba(242,237,227,0.75)]">
-            {p.tagline ?? "A season line worth remembering."}
-          </div>
-        </div>
-
-        <div className="mt-5 h-px bg-[rgba(216,157,62,0.35)]" />
-
-        <div className="mt-5 grid grid-cols-4 gap-3 tabular-nums">
-          <StatSmall label="PPG" value={p.stats.ppg.toFixed(1)} />
-          <StatSmall label="RPG" value={p.stats.rpg.toFixed(1)} />
-          <StatSmall label="APG" value={p.stats.apg.toFixed(1)} />
-          <StatSmall label="FG%" value={`${p.stats.fg.toFixed(1)}%`} />
-        </div>
-
-        <div className="mt-6 flex-1" />
-
         <div className="flex items-center justify-between">
-          <div className="font-[var(--font-ui)] text-[10px] tracking-[0.24em] text-[rgba(242,237,227,0.72)]">
-            SOLVED IN {solvedIn ? `${solvedIn}/6` : "X/6"} · {editionLabel(edition)}
+          <div className="text-[16px] font-bold tracking-[-0.04em]">
+            statle<span style={{ color: "var(--accent)" }}>.</span>
           </div>
-          <div className="grid grid-cols-6 gap-1">
-            {Array.from({ length: 6 }).map((_, i) => {
-              const used = outcome === "win" && i < guessesUsed;
-              return (
-                <div
-                  key={i}
-                  className="h-3 w-3 rounded-[4px] border"
-                  style={{
-                    background: used ? "var(--hit)" : "rgba(242,237,227,0.14)",
-                    borderColor: "rgba(0,0,0,0.35)",
-                  }}
-                />
-              );
-            })}
+          <div className="mono text-[14px] text-[--fg-dim]">
+            {solvedIn ? `${solvedIn}/6` : "X/6"}
+            <span style={{ color: "var(--accent)" }}>.</span>
+          </div>
+        </div>
+
+        <div className="mt-3 h-px bg-[--hairline]" />
+
+        <div className="mt-8 flex items-center justify-center">
+          <div
+            className="h-[120px] w-[120px] rounded-full"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              boxShadow: "0 0 0 1px var(--hairline) inset",
+            }}
+          />
+        </div>
+
+        <div className="mt-6 text-center">
+          <div className="text-[32px] font-bold tracking-[-0.04em] uppercase">{p.first}</div>
+          <div className="text-[32px] font-bold tracking-[-0.04em] uppercase">{p.last}</div>
+          <div className="mt-3 mono text-[11px] font-medium tracking-[0.16em] text-[--fg-dim] uppercase">
+            {p.teamCode} · {p.position} · {p.height || "—"}
+          </div>
+        </div>
+
+        <div className="mt-8 h-px bg-[--hairline]" />
+
+        <div className="mt-6 grid grid-cols-4 gap-6">
+          <StatCell label="PPG" value={p.stats.ppg.toFixed(1)} />
+          <StatCell label="RPG" value={p.stats.rpg.toFixed(1)} />
+          <StatCell label="APG" value={p.stats.apg.toFixed(1)} />
+          <StatCell label="FG%" value={p.stats.fg.toFixed(1)} />
+        </div>
+
+        <div className="mt-auto pt-6 flex items-center justify-between">
+          <div className="mono text-[11px] text-[--fg-dim] tracking-[0.16em] uppercase">
+            {Array.from({ length: 6 }).map((_, i) => (outcome === "win" && i < guessesUsed ? "▓" : "░")).join("")}
+          </div>
+          <div className="mono text-[11px] text-[--fg-dim] tracking-[0.16em] uppercase">
+            {edition === "gold" ? "GOLD EDITION" : edition === "holo" ? "HOLO EDITION" : "STANDARD EDITION"}
           </div>
         </div>
       </div>
@@ -108,11 +94,11 @@ export function TradingCard({
   );
 }
 
-function StatSmall({ label, value }: { label: string; value: string }) {
+function StatCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col">
-      <div className="font-[var(--font-ui)] text-[10px] tracking-[0.24em] text-[rgba(242,237,227,0.7)]">{label}</div>
-      <div className="mt-1 font-[var(--font-display)] tracking-[-0.04em] text-[38px] leading-none">{value}</div>
+    <div className="text-center">
+      <div className="mono text-[28px] font-medium tracking-[-0.02em] leading-none">{value}</div>
+      <div className="mt-2 text-[10px] font-semibold tracking-[0.16em] text-[--fg-faint] uppercase">{label}</div>
     </div>
   );
 }
