@@ -135,9 +135,13 @@ export default function StatleApp() {
       ? `I solved Statle №${puzzle.issueNo} in ${score}/6.`
       : `Statle №${puzzle.issueNo} got me. Can you solve it?`;
 
-    const imageUrl = `/api/share/${puzzle.date}?score=${encodeURIComponent(String(score))}&used=${encodeURIComponent(
-      String(used),
-    )}&outcome=${encodeURIComponent(outcomeParam)}`;
+    const imageUrl = `/api/share/${puzzle.date}?issue=${encodeURIComponent(String(puzzle.issueNo))}&season=${encodeURIComponent(
+      puzzle.season,
+    )}&ppg=${encodeURIComponent(String(puzzle.target.stats.ppg))}&rpg=${encodeURIComponent(
+      String(puzzle.target.stats.rpg),
+    )}&apg=${encodeURIComponent(String(puzzle.target.stats.apg))}&score=${encodeURIComponent(
+      String(score),
+    )}&used=${encodeURIComponent(String(used))}&outcome=${encodeURIComponent(outcomeParam)}`;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nav: any = navigator;

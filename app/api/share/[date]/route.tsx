@@ -1,6 +1,4 @@
 import { ImageResponse } from "next/og";
-import puzzles from "@/data/puzzles.json";
-import type { Puzzle } from "@/lib/types";
 
 export const runtime = "edge";
 
@@ -14,18 +12,35 @@ const geistMono = fetch(
   new URL("../../../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Medium.woff2", import.meta.url),
 ).then((r) => r.arrayBuffer());
 
-function findPuzzle(dateIso: string): Puzzle | null {
-  const p = (puzzles as unknown as Puzzle[]).find((x) => x.date === dateIso);
-  return p ?? null;
+function reqFloat(url: URL, key: string): number | null {
+  const raw = url.searchParams.get(key);
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function reqInt(url: URL, key: string): number | null {
+  const raw = url.searchParams.get(key);
+  if (!raw) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ date: string }> }) {
-  const { date } = await params;
-  const puzzle = findPuzzle(date);
-  if (!puzzle) return new Response("Not found", { status: 404 });
-
-  const t = puzzle.target;
   const url = new URL(req.url);
+
+  // IMPORTANT: keep this route small. Do not import large JSON.
+  // The app passes the minimal share payload as query params.
+  const season = url.searchParams.get("season");
+  const issueNo = reqInt(url, "issue");
+  const ppg = reqFloat(url, "ppg");
+  const rpg = reqFloat(url, "rpg");
+  const apg = reqFloat(url, "apg");
+
+  if (!season || !issueNo || ppg == null || rpg == null || apg == null) {
+    return new Response("Missing params", { status: 400 });
+  }
+
   const scoreParam = url.searchParams.get("score");
   const score = scoreParam ? Number(scoreParam) : 0;
   const solvedIn = Number.isFinite(score) && score >= 1 && score <= 6 ? Math.floor(score) : 0;
@@ -68,12 +83,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ date: st
           <div style={{ fontFamily: "GeistSans", fontWeight: 700, fontSize: 32, letterSpacing: "-0.04em" }}>
             statle<span style={{ color: "#FF6B35" }}>.</span>
           </div>
-          <div style={{ fontFamily: "GeistMono", fontSize: 16, opacity: 0.32 }}>№ {puzzle.issueNo}</div>
+          <div style={{ fontFamily: "GeistMono", fontSize: 16, opacity: 0.32 }}>№ {issueNo}</div>
         </div>
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", textAlign: "center" }}>
           <div style={{ fontFamily: "GeistSans", fontSize: 14, fontWeight: 600, letterSpacing: "0.16em", opacity: 0.32 }}>
-            {puzzle.season} SEASON
+            {season} SEASON
           </div>
 
           <div
@@ -88,11 +103,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ date: st
               whiteSpace: "nowrap",
             }}
           >
-            <span>{t.stats.ppg.toFixed(1)}</span>
+            <span>{ppg.toFixed(1)}</span>
             <span style={{ opacity: 0.4 }}> / </span>
-            <span>{t.stats.rpg.toFixed(1)}</span>
+            <span>{rpg.toFixed(1)}</span>
             <span style={{ opacity: 0.4 }}> / </span>
-            <span>{t.stats.apg.toFixed(1)}</span>
+            <span>{apg.toFixed(1)}</span>
           </div>
 
           <div style={{ marginTop: 22, display: "flex", justifyContent: "center", gap: 90 }}>
